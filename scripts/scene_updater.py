@@ -3,7 +3,7 @@ import os
 from google.cloud import storage
 
 USD_BUCKET_NAME = "irobotx-usd-scenes"
-LOCAL_USD_WORKING_DIR = "C:/Users/Rifqi Dewangga/Documents/Touchdesigner/Scenes"
+LOCAL_USD_WORKING_DIR = "C:/Users/Rifqi Dewangga/Documents"
 
 # me - this DAT
 # scriptOp - the OP which is cooking
@@ -39,33 +39,14 @@ def onSetupParameters(scriptOp):
 def onPulse(par):
 	if par.name == "Updatescene":
 		print("Retrieving scene from cloud...")
-		update_scene_files()
+		update_working_dir()
+		download_all_assets(USD_BUCKET_NAME)
+		print("Scene successfully updated")
+		reinit_usd_op()
 
 def onCook(scriptOp):
 	scriptOp.clear()
 	return
-
-def create_bucket(bucket_name):
-		# Instantiates a client
-	storage_client = storage.Client()
-
-	# Creates the new bucket
-	bucket = storage_client.create_bucket(bucket_name)
-
-	print(f"Bucket {bucket.name} created.")
-
-def get_all_blobs(bucket_name):
-		"""Lists all the blobs in the bucket."""
-		# bucket_name = "your-bucket-name"
-
-		storage_client = storage.Client()
-
-		# Note: Client.list_blobs requires at least package version 1.17.0.
-		blobs = storage_client.list_blobs(bucket_name)
-
-		# for blob in blobs:
-		#   print(blob.name)
-		return blobs
 
 def create_directory_for_file(filename):
 	path = os.path.dirname(filename)
@@ -74,43 +55,38 @@ def create_directory_for_file(filename):
 
 	os.makedirs(path)
 
-def download_blob(bucket_name, source_blob_name, destination_file_name):
-	"""Downloads a blob from the bucket."""
-	# The ID of your GCS bucket
-	# bucket_name = "your-bucket-name"
-
-	# The ID of your GCS object
-	# source_blob_name = "storage-object-name"
-
-	# The path to which the file should be downloaded
-	# destination_file_name = "local/path/to/file"
-	create_directory_for_file(destination_file_name)
+def download_all_assets(bucket_name):
 	storage_client = storage.Client()
 
-	bucket = storage_client.bucket(bucket_name)
+	blobs = storage_client.list_blobs(bucket_name)
 
-	# Construct a client side representation of a blob.
-	# Note `Bucket.blob` differs from `Bucket.get_blob` as it doesn't retrieve
-	# any content from Google Cloud Storage. As we don't need additional data,
-	# using `Bucket.blob` is preferred here.
-	blob = bucket.blob(source_blob_name)
-	blob.download_to_filename(destination_file_name)
+	for blob in blobs:
+		filepath = f"{LOCAL_USD_WORKING_DIR}/{blob.name}"
+		create_directory_for_file(filepath)
+		blob.download_to_filename(filepath)
 
-	print(
-		"Downloaded storage object {} from bucket {} to local file {}.".format(
-			source_blob_name, bucket_name, destination_file_name
-		)
-	)
+		print(f"Downloaded storage object {blob.name} from bucket {bucket_name} to local file {filepath}")
 
 def update_scene_files():
 	blobs = get_all_blobs(USD_BUCKET_NAME)
 
 	for blob in blobs:
 		local_filename = f"{LOCAL_USD_WORKING_DIR}/{blob.name}"
-		download_blob(USD_BUCKET_NAME, blob.name, local_filename)
+		download_all_assets(USD_BUCKET_NAME, blob.name, local_filename)
+
+def reinit_usd_op():
+	op('usd1').par.imp.pulse()
+
+def update_working_dir():
+	working_dir = op('config')[0,1]
+
+	global LOCAL_USD_WORKING_DIR
+	LOCAL_USD_WORKING_DIR = working_dir
+	print(f"Set USD working directory to: {LOCAL_USD_WORKING_DIR}")
 
 def main():
-	update_scene_files()
+	# update_scene_files()
+	print("main called")
 
 if __name__ == "__main__":
 	main()
